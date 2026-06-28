@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a ShopHub consistency execution report scaffold."""
+"""生成 ShopHub 设计实现一致性执行报告脚手架。"""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def as_list(value: str | None) -> list[str]:
 
 
 def bullet(items: list[str]) -> str:
-    return "\n".join(f"- {item}" for item in items) if items else "- Not recorded"
+    return "\n".join(f"- {item}" for item in items) if items else "- 未记录"
 
 
 def render(data: dict[str, Any]) -> str:
@@ -24,19 +24,19 @@ def render(data: dict[str, Any]) -> str:
     validations = data.get("validations", [])
 
     lines = [
-        "# ShopHub Consistency Execution Report",
+        "# ShopHub 设计实现一致性执行报告",
         "",
-        "## Scope",
-        "- Modules/features inspected:",
+        "## 范围",
+        "- 已检查模块/功能：",
         bullet(data.get("modules", [])),
-        "- Design documents used:",
+        "- 使用的设计文档：",
         bullet(data.get("docs", [])),
-        "- README contract sections used:",
+        "- 使用的 README 契约章节：",
         bullet(data.get("readme_sections", [])),
         "",
-        "## Findings and Fixes",
-        "| ID | Design/API expectation | Implementation mismatch | Fix | Files changed |",
-        "|----|------------------------|-------------------------|-----|---------------|",
+        "## 发现与修复",
+        "| 编号 | 设计/API 期望 | 实现不一致 | 修复方式 | 变更文件 |",
+        "|------|---------------|------------|----------|----------|",
     ]
     if findings:
         for item in findings:
@@ -54,9 +54,9 @@ def render(data: dict[str, Any]) -> str:
 
     lines.extend([
         "",
-        "## Validation",
-        "| Command | Result | Notes |",
-        "|---------|--------|-------|",
+        "## 验证",
+        "| 命令 | 结果 | 说明 |",
+        "|------|------|------|",
     ])
     if validations:
         for item in validations:
@@ -66,16 +66,16 @@ def render(data: dict[str, Any]) -> str:
     else:
         lines.append("| TBD | TBD | TBD |")
 
-    lines.extend(["", "## Residual Risks", bullet(data.get("risks", [])), ""])
+    lines.extend(["", "## 残余风险", bullet(data.get("risks", [])), ""])
     return "\n".join(lines)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", type=Path, help="JSON file with report fields")
-    parser.add_argument("--modules", help="Comma-separated modules/features")
-    parser.add_argument("--docs", help="Comma-separated design documents")
-    parser.add_argument("--readme-sections", help="Comma-separated README sections")
+    parser.add_argument("--modules", help="逗号分隔的模块/功能")
+    parser.add_argument("--docs", help="逗号分隔的设计文档")
+    parser.add_argument("--readme-sections", help="逗号分隔的 README 章节")
     parser.add_argument("-o", "--output", type=Path)
     args = parser.parse_args()
 

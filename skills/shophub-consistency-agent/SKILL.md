@@ -1,91 +1,91 @@
-# ShopHub Consistency Repair Agent Skill
+# ShopHub 设计实现一致性修复 Agent Skill
 
-Use this skill when working on the ShopHub software-contest task: compare `design-docs/`, the frozen REST API contract in `README.md`, and the Java Spring Boot multi-module implementation under `code/`, then repair implementation inconsistencies without changing design documents or the frozen API contract.
+当任务是处理 ShopHub 软件大赛题目时使用本 Skill：对比 `design-docs/`、`README.md` 中冻结的 REST API 契约，以及 `code/` 下 Java Spring Boot 多模块实现，发现设计与实现的不一致，并只修复代码实现，不反向修改设计文档或冻结 API 契约。
 
-## Goal
+## 目标
 
-Deliver code changes that make ShopHub match the design documents and keep the project buildable. Finish every run with an execution report that records inspected documents, inconsistencies found, code changes made, and validation results.
+交付一组代码修改，使 ShopHub 的实现与设计文档保持一致，并保证项目可编译、可验证。每次执行结束时都应输出执行报告，说明读取了哪些文档、发现了哪些不一致、修复了哪些文件、运行了哪些验证命令，以及仍然存在的风险。
 
-## Non-negotiable rules
+## 不可违反的规则
 
-- Treat `design-docs/` as the acceptance baseline.
-- Do not modify `design-docs/`, `test-cases/`, or frozen API URLs/methods/request fields/response fields/status codes from `README.md`.
-- Do not hard-code logic for specific public tests.
-- Do not expose database reset or bootstrap endpoints.
-- Keep `/api/v1/` unchanged.
-- Preserve Java 17 and Spring Boot 3.2.6 compatibility.
+- `design-docs/` 是最终验收基准。
+- 不得修改 `design-docs/`、`test-cases/`，也不得修改 `README.md` 冻结的 API URL、HTTP Method、请求字段、响应字段、字段类型和成功状态码。
+- 不得为某个公开测试用例写硬编码逻辑。
+- 不得暴露数据库 reset/bootstrap 接口。
+- 不得修改 `/api/v1/` 前缀。
+- 保持 Java 17 与 Spring Boot 3.2.6 兼容。
 
-## Workflow
+## 工作流程
 
-1. **Load contest context**
-   - Read `README.md` sections 3, 5, 6, 7, 8, and 9.
-   - Read all relevant files in `design-docs/`; for a focused fix, read at least the module design document plus common specs:
+1. **读取比赛上下文**
+   - 阅读 `README.md` 第 3、5、6、7、8、9 节。
+   - 阅读 `design-docs/` 中与任务相关的设计文档；如果是聚焦某个模块的修复，至少同时阅读该模块设计文档和以下通用文档：
      - `03-通用规范与非功能设计.md`
      - `附录A-API接口参考.md`
      - `附录B-配置参考.md`
      - `附录C-数据模型.md`
      - `附录D-本地事件契约.md`
-   - Use `references/module-map.md` to map business domains to Maven modules and design documents.
+   - 使用 `references/module-map.md` 将业务域映射到 Maven 模块和设计文档。
 
-2. **Build an API and behavior checklist**
-   - Use `scripts/extract_api_contract.py` to extract the frozen API baseline from `README.md` into a Markdown checklist.
-   - Compare controllers, DTOs, HTTP status codes, error codes, and auth requirements against that checklist.
-   - For business behavior, use `references/common-patterns.md` as a defect-pattern catalog.
+2. **建立 API 与行为检查清单**
+   - 使用 `scripts/extract_api_contract.py` 从 `README.md` 抽取冻结 API 基线，生成 Markdown 检查清单。
+   - 将 Controller、DTO、HTTP 成功状态码、错误码和认证要求逐项对照检查清单。
+   - 对业务行为使用 `references/common-patterns.md` 中沉淀的常见缺陷模式进行排查。
 
-3. **Inspect implementation**
-   - Search with `rg`, not recursive grep.
-   - Check controllers first, then services/domain models/repositories/configuration.
-   - Verify module boundaries and shared classes in `ecommerce-common` before adding duplicate code.
+3. **检查实现**
+   - 使用 `rg` 搜索代码，不使用递归 `grep`。
+   - 先检查 Controller，再检查 Service、领域模型、Repository 和配置。
+   - 新增公共能力前，先检查 `ecommerce-common` 是否已有共享类，避免重复实现。
 
-4. **Repair code only**
-   - Prefer minimal, design-driven patches.
-   - Add or update DTOs, services, configuration, events, and tests only when they support the design.
-   - Keep API response shapes stable; if a controller returns `ResponseEntity`, explicitly set the README success status.
-   - Use design-defined error codes and HTTP status mappings.
+4. **只修复代码实现**
+   - 优先做最小、设计驱动的补丁。
+   - 只有在服务于设计一致性时，才新增或更新 DTO、Service、配置、事件和测试。
+   - 保持 API 响应结构稳定；如果 Controller 返回 `ResponseEntity`，必须显式设置 `README.md` 中约定的成功状态码。
+   - 使用设计文档和 README 中定义的错误码与 HTTP 状态映射。
 
-5. **Validate**
-   - Run the narrowest relevant tests first.
-   - Before finalizing, run when feasible:
+5. **验证**
+   - 先运行最小范围的相关测试。
+   - 最终提交前，在可行时运行：
      ```bash
      mvn -s maven-settings.xml -f code/pom.xml test
      mvn -s maven-settings.xml -f code/pom.xml install -DskipTests
      mvn -s maven-settings.xml -f test-cases/pom.xml test
      ```
-   - If network or mirror access prevents dependency resolution, record it as an environment limitation in the report.
+   - 如果网络、Maven 镜像或依赖下载导致命令无法完成，需要在报告中标记为环境限制。
 
-6. **Report**
-   - Generate an execution report using `scripts/generate_report.py` or write the same sections manually.
-   - Include: scope, inspected evidence, inconsistencies, fixes, validations, residual risks.
+6. **输出报告**
+   - 使用 `scripts/generate_report.py` 生成执行报告，或按同样结构手写报告。
+   - 报告必须包含：范围、检查依据、发现的不一致、修复内容、验证结果、残余风险。
 
-## Output report template
+## 执行报告模板
 
 ```markdown
-# ShopHub Consistency Execution Report
+# ShopHub 设计实现一致性执行报告
 
-## Scope
-- Modules/features inspected:
-- Design documents used:
-- README contract sections used:
+## 范围
+- 已检查模块/功能：
+- 使用的设计文档：
+- 使用的 README 契约章节：
 
-## Findings and Fixes
-| ID | Design/API expectation | Implementation mismatch | Fix | Files changed |
-|----|------------------------|-------------------------|-----|---------------|
+## 发现与修复
+| 编号 | 设计/API 期望 | 实现不一致 | 修复方式 | 变更文件 |
+|------|---------------|------------|----------|----------|
 
-## Validation
-| Command | Result | Notes |
-|---------|--------|-------|
+## 验证
+| 命令 | 结果 | 说明 |
+|------|------|------|
 
-## Residual Risks
+## 残余风险
 - 
 ```
 
-## Reference files
+## Reference 文件
 
-- `references/module-map.md` — domain-to-module/document mapping.
-- `references/common-patterns.md` — recurring mismatch and repair patterns.
-- `references/report-checklist.md` — final review checklist.
+- `references/module-map.md`：业务域、代码模块和设计文档映射。
+- `references/common-patterns.md`：常见不一致模式和修复方向。
+- `references/report-checklist.md`：最终报告前的自检清单。
 
-## Helper scripts
+## 辅助脚本
 
-- `scripts/extract_api_contract.py` — parses README API tables and emits a checklist.
-- `scripts/generate_report.py` — creates a report scaffold from JSON or command-line fields.
+- `scripts/extract_api_contract.py`：解析 README API 表格并生成检查清单。
+- `scripts/generate_report.py`：根据 JSON 或命令行字段生成报告脚手架。

@@ -1,11 +1,11 @@
-# Report Checklist
+# 报告自检清单
 
-Before producing the final execution report, confirm:
+输出最终执行报告前，确认以下事项：
 
-- [ ] No files under `design-docs/` were modified.
-- [ ] No files under `test-cases/` were modified unless the human explicitly allowed it for local experimentation; never include such changes in final contest fixes.
-- [ ] Frozen API paths, methods, field names, field types, status codes, and `/api/v1/` prefix are unchanged.
-- [ ] Every changed behavior cites a design document or README contract expectation.
-- [ ] Error codes and HTTP statuses match README section 7.
-- [ ] Module tests or relevant black-box tests were run, or environment limitations are documented.
-- [ ] Residual risks list unverified modules or commands that could not be run.
+- [ ] 没有修改 `design-docs/` 下的任何文件。
+- [ ] 没有修改 `test-cases/`；即使为本地实验临时修改，也不得把这些改动纳入最终补丁。
+- [ ] 冻结 API 的路径、HTTP Method、字段名、字段类型、成功状态码和 `/api/v1/` 前缀均未改变。
+- [ ] 每一项行为变更都能追溯到设计文档或 README API 契约。
+- [ ] 错误码和 HTTP 状态码与 README 第 7 节一致。
+- [ ] 已运行模块测试或相关黑盒测试；若因环境限制无法运行，已在报告中说明。
+- [ ] 残余风险列出了尚未验证的模块或无法运行的命令。

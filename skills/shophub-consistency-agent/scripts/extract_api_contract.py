@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Extract the frozen ShopHub REST API contract from README.md.
+"""从 README.md 抽取 ShopHub 冻结 REST API 契约。
 
-The script scans README API baseline tables and emits a Markdown checklist that
-is convenient for controller-by-controller consistency review.
+脚本会扫描 README 的 API 基线表格，并输出便于逐个 Controller
+核对的一份 Markdown 检查清单。
 """
 
 from __future__ import annotations
@@ -42,14 +42,14 @@ def extract(readme: Path) -> list[dict[str, str]]:
 
 
 def render_markdown(rows: list[dict[str, str]]) -> str:
-    lines = ["# Frozen API Contract Checklist", ""]
+    lines = ["# 冻结 API 契约检查清单", ""]
     last_section = None
     for row in rows:
         if row["section"] != last_section:
             last_section = row["section"]
             lines.extend([f"## {last_section}", ""])
         lines.append(
-            f"- [ ] `{row['method']}` `{row['url']}` — auth: {row['auth']}; success: {row['status']}"
+            f"- [ ] `{row['method']}` `{row['url']}` — 认证：{row['auth']}；成功状态码：{row['status']}"
         )
     lines.append("")
     return "\n".join(lines)
@@ -58,7 +58,7 @@ def render_markdown(rows: list[dict[str, str]]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("readme", nargs="?", default="README.md", type=Path)
-    parser.add_argument("-o", "--output", type=Path, help="Optional output Markdown file")
+    parser.add_argument("-o", "--output", type=Path, help="可选的 Markdown 输出文件")
     args = parser.parse_args()
 
     rows = extract(args.readme)

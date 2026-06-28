@@ -1,47 +1,47 @@
-# Common ShopHub Consistency Patterns
+# ShopHub 常见一致性模式
 
-Use these patterns as a checklist while comparing design documents and implementation.
+对比设计文档和代码实现时，将这些模式作为检查清单使用。
 
-## API contract patterns
+## API 契约模式
 
-- **Created resources must return 201**: register, address create, product/SPU/SKU create, warehouse/inbound/outbound/adjustment, order create, payment create, refund apply, invoice create, coupon claim, review create/append, freight/full-reduction/seckill creation.
-- **Deletes that remove state return 204 with an empty body**: address delete, cart item delete, cart clear, clearing fault injections.
-- **Frozen URL shapes are exact**: do not rename segments such as `/orders/create`, `/admin/orders/{orderId}/cancel-review`, `/reviews/product/{productId}`, or `/admin/system/clock`.
-- **Error response consistency**: map business exceptions to README error codes and HTTP statuses; avoid leaking validation stack traces as 500.
-- **Anonymous endpoints must stay anonymous**: product browsing, inventory checks, registration/activation/login, payment/logistics signed callbacks.
+- **创建资源必须返回 201**：注册、创建地址、创建 SPU/SKU、创建仓库、入库、出库、库存调整、创建订单、创建支付单、申请退款、创建发票、领取优惠券、发布评价/追评、创建运费模板/满减/秒杀活动。
+- **删除类接口必须返回 204 且响应体为空**：删除地址、删除购物车项、清空购物车、清除故障注入。
+- **冻结 URL 形态必须完全一致**：不得重命名 `/orders/create`、`/admin/orders/{orderId}/cancel-review`、`/reviews/product/{productId}`、`/admin/system/clock` 等路径片段。
+- **错误响应必须一致**：业务异常要映射到 README 中定义的错误码和 HTTP 状态码；不要把参数校验或业务冲突泄漏成 500。
+- **匿名接口必须保持匿名访问**：商品浏览、库存查询/检查、注册/激活/登录、带签名的支付/物流回调。
 
-## User and auth patterns
+## 用户与认证模式
 
-- Registration creates a pending user; activation moves the user to active.
-- Login must reject inactive users with `USER_NOT_ACTIVE` and frozen users with `USER_FROZEN` where the design requires it.
-- USER endpoints must use the authenticated user rather than request-supplied user IDs.
-- ADMIN endpoints must require admin authorization.
+- 注册后用户应处于待激活状态；激活后变为可登录的正常状态。
+- 未激活用户登录应返回 `USER_NOT_ACTIVE`；冻结用户在设计要求的场景下应返回 `USER_FROZEN`。
+- USER 接口必须使用当前认证用户，不应信任请求中传入的 userId。
+- ADMIN 接口必须校验管理员权限。
 
-## Product/inventory/cart patterns
+## 商品、库存与购物车模式
 
-- Only `ON_SHELF` SKUs are saleable and searchable to public users.
-- Inventory availability usually equals on-hand minus locked/reserved stock; inbound should increase both on-hand and available stock when no lock exists.
-- Cart add commonly accumulates quantity for the same SKU; cart update replaces quantity.
-- Cart estimate should expose item total, discount, shipping, packaging, points deduction, and payable amount according to design formulas.
+- 只有 `ON_SHELF` SKU 可销售，并能出现在面向用户的搜索/列表中。
+- 可用库存通常等于现货库存减去锁定/预占库存；无锁定时，入库应同时增加现货库存和可用库存。
+- 添加购物车时，同一 SKU 的数量通常应累加；修改购物车项时，数量通常应覆盖为请求值。
+- 购物车预估应按设计暴露商品总额、优惠金额、运费、包装费、积分抵扣金额和应付金额。
 
-## Order/payment/logistics patterns
+## 订单、支付与物流模式
 
-- Order creation validates user status, SKU sale status, stock, amount formula, risk controls, address, and promotions before persisting.
-- High-risk orders should fail with `ORDER_RISK_REJECTED`, not a generic validation error.
-- Payment callback success should not roll back when downstream notification/event/logistics actions fail; record failures for admin query.
-- Logistics must follow the designed state machine: pick before print label before outbound; reject skipped transitions with a status-conflict error.
-- Timeout cancellation should use the controllable test clock when present.
+- 创建订单前必须校验用户状态、SKU 可售状态、库存、金额公式、风控、地址和促销规则。
+- 高风险订单应返回 `ORDER_RISK_REJECTED`，不能降级成普通参数错误或内部错误。
+- 支付回调成功后，下游通知、事件或物流动作失败不应导致支付回滚；失败应记录到可查询的事件失败记录中。
+- 物流必须遵循设计状态机：先拣货，再打印面单，再出库；跳步操作应返回状态冲突类错误。
+- 超时取消应使用可控测试时钟，而不是直接读取不可替换的系统时间。
 
-## Promotion/loyalty/review/invoice patterns
+## 促销、积分、评价与发票模式
 
-- Percentage coupons often store discount rate; an 8-fold coupon means customer pays 80%, so discount is `price * (1 - 0.8)`.
-- Payable amount formula should include shipping/packaging and subtract discounts/points exactly once.
-- Purchase verification for reviews should accept paid/fulfilled states as defined by design, and reject non-purchases with `REVIEW_PURCHASE_REQUIRED`.
-- Invoice amount cannot exceed remaining invoiceable paid amount; use `INVOICE_AMOUNT_EXCEEDED`.
-- Points history pagination should be deterministic and scoped to the current user.
+- 百分比优惠券通常保存折扣率；“8 折”表示用户支付 80%，优惠金额应为 `price * (1 - 0.8)`。
+- 应付金额公式必须按设计包含运费/包装费，并且只扣减一次优惠、积分等抵扣项。
+- 评价的购买校验应认可设计中允许评价的已支付/已履约状态；未购买时返回 `REVIEW_PURCHASE_REQUIRED`。
+- 发票金额不能超过订单剩余可开票金额；超额时返回 `INVOICE_AMOUNT_EXCEEDED`。
+- 积分历史分页应稳定排序，并且只能查询当前用户的数据。
 
-## Configuration and testability patterns
+## 配置与可测试性模式
 
-- Runtime config overrides under admin system APIs should affect subsequent service calculations without restart.
-- Fault injection should be scoped, queryable through event failure records where designed, and clearable.
-- Tests create isolated H2 contexts; avoid static mutable state that survives context shutdown unless explicitly reset by Spring lifecycle.
+- 管理端运行时配置覆盖应影响后续服务计算，无需重启应用。
+- 故障注入应有明确作用域；按设计可通过事件失败记录查询，并能被清除。
+- 黑盒测试会创建隔离的 H2 Spring 上下文；避免静态可变状态跨上下文残留，除非通过 Spring 生命周期显式清理。
