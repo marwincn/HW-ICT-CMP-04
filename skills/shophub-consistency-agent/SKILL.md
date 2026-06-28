@@ -89,3 +89,12 @@
 
 - `scripts/extract_api_contract.py`：解析 README API 表格并生成检查清单。
 - `scripts/generate_report.py`：根据 JSON 或命令行字段生成报告脚手架。
+
+## Skill 效果对比评估
+
+当需要证明本 Skill 的价值时，使用 `references/ab-evaluation.md` 中的 A/B 对比方案：
+
+1. 在两个干净分支或工作区中执行同一批比赛任务，A 组不加载本 Skill，B 组严格按本 Skill 执行。
+2. 两组都必须记录相同格式的执行报告，包括检查范围、发现数量、修复数量、验证命令、失败原因和残余风险。
+3. 使用 `scripts/compare_runs.py` 汇总两份 JSON 结果，从 API 契约覆盖率、设计文档覆盖率、缺陷发现率、修复有效性、测试通过情况、违规风险、报告完整度和耗时等维度对比。
+4. 对比结论应以测试结果和报告证据为准，不用主观印象替代数据。
