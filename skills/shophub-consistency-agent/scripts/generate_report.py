@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""生成 ShopHub 设计实现一致性执行报告脚手架。"""
+"""生成 ShopHub 规格驱动黑盒验收与一致性修复报告脚手架。"""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def render(data: dict[str, Any]) -> str:
     validations = data.get("validations", [])
 
     lines = [
-        "# ShopHub 设计实现一致性执行报告",
+        "# ShopHub 规格驱动黑盒验收与一致性修复报告",
         "",
         "## 范围",
         "- 已检查模块/功能：",
@@ -33,6 +33,18 @@ def render(data: dict[str, Any]) -> str:
         bullet(data.get("docs", [])),
         "- 使用的 README 契约章节：",
         bullet(data.get("readme_sections", [])),
+        "",
+        "## 原始黑盒探索",
+        "- 已探索的原始用例：",
+        bullet(data.get("original_blackbox_cases", [])),
+        "- 发现的覆盖缺口：",
+        bullet(data.get("coverage_gaps", [])),
+        "",
+        "## test-case-new 新增验收覆盖",
+        "- 新增黑盒用例：",
+        bullet(data.get("new_blackbox_cases", [])),
+        "- 覆盖的规格与契约：",
+        bullet(data.get("new_blackbox_contracts", [])),
         "",
         "## 发现与修复",
         "| 编号 | 设计/API 期望 | 实现不一致 | 修复方式 | 变更文件 |",
@@ -86,6 +98,10 @@ def main() -> int:
             "modules": as_list(args.modules),
             "docs": as_list(args.docs),
             "readme_sections": as_list(args.readme_sections),
+            "original_blackbox_cases": [],
+            "coverage_gaps": [],
+            "new_blackbox_cases": [],
+            "new_blackbox_contracts": [],
             "findings": [],
             "validations": [],
             "risks": [],

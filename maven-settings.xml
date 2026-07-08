@@ -2,9 +2,9 @@
 <settings>
     <mirrors>
         <mirror>
-            <id>xx</id>
+            <id>aliyun</id>
             <mirrorOf>*</mirrorOf>
-            <url>http://mirrors.tools.xxx.com/</url>
+            <url>https://maven.aliyun.com/repository/public</url>
         </mirror>
     </mirrors>
 </settings>
