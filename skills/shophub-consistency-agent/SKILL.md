@@ -1,94 +1,122 @@
 ---
 name: shophub-consistency-agent
-description: 审查并修复 ShopHub 软件大赛代码，使 Java 17 与 Spring Boot 3.2.6 实现符合 design-docs/ 中的设计规格、README.md 中冻结的 REST API 契约，以及基于这些规格生成到 test-case-new/ 的新增黑盒验收用例。当 Codex 需要从设计和接口契约推导黑盒测试、保护原始 test-cases/ 不被修改、定位或修复契约、DTO、状态码、认证、业务规则、持久化、事件、配置或测试隔离问题时使用。
+description: 审查并修复 ShopHub 软件大赛代码，使 Java 17 与 Spring Boot 3.2.6 实现符合 design-docs/ 的设计规格和 README.md 的冻结 REST API 契约。用于从规格建立可追踪清单和设计侧契约、只读分析 test-cases/、在 test-case-new/ 生成真实 HTTP 黑盒验收、检查状态机、公式、权限、事件和模块边界，并以失败用例驱动源代码及 UT 修复直至全部验收通过。
 ---
 
-# ShopHub 规格驱动黑盒验收与一致性修复
+# ShopHub 设计实现一致性验收
 
-先从 `design-docs/` 和 `README.md` 建立规格与 REST 契约基线，再参考原始 `test-cases/` 的测试风格生成新的 `test-case-new/` 黑盒验收用例，最后以 `test-case-new/` 作为最终验收标准驱动 `code/` 下实现和实现侧单元测试修复。
+把设计规格转化为可追踪、可执行的验收标准，再用失败证据修复实现。不得从当前实现反推期望。
 
-## 保护不可变约束
+## 保护验收基准
 
-- 不得修改 `design-docs/` 或 `test-cases/`。
-- 可以创建和修改 `test-case-new/`，但不得从 `test-cases/` 直接移动、覆盖或改写原始比赛用例。
-- 不得修改 `README.md` 中冻结的 API URL、HTTP 方法、请求或响应字段、字段类型、成功状态码及 `/api/v1/` 前缀。
-- 不得为单个公开测试硬编码行为。
-- 不得暴露数据库重置或初始化接口。
-- 保持 Java 17 与 Spring Boot 3.2.6 兼容。
-- 保留工作树中与任务无关的用户改动。
+- 不得修改 `design-docs/`、`README.md` 或 `test-cases/`。
+- 只能在 `test-case-new/` 创建新增黑盒、契约和追踪产物。
+- 不得改变冻结的 URL、HTTP 方法、请求/响应字段、字段类型、成功状态码及 `/api/v1/` 前缀。
+- 不得为公开用例硬编码行为，不得新增数据库重置或初始化接口。
+- 保持 Java 17、Spring Boot 3.2.6 兼容，并保留无关用户改动。
 
-编辑前检查 `git status --short`。编辑后检查差异；如果本次修复改动了受保护文件，则停止交付并撤销相应改动。`test-case-new/` 是本 Skill 生成的验收资产，不属于禁改目录。
+开始前记录 `git status --short`，并计算受保护文件摘要：
 
-## 阶段一：建立规格与接口契约基线
+```bash
+git ls-files -z -- README.md design-docs test-cases | sort -z | xargs -0 shasum -a 256
+```
 
-1. 阅读 `README.md` 第 3、5、6、7、8 和 9 节。
-2. 阅读 `design-docs/` 下与目标业务域相关的设计文档；全量验收时覆盖所有业务域设计文档。
-3. 同时阅读适用的通用文档：
-   - `03-通用规范与非功能设计.md`
-   - `附录A-API接口参考.md`
-   - `附录B-配置参考.md`
-   - `附录C-数据模型.md`
-   - `附录D-本地事件契约.md`
-4. 阅读 [references/module-map.md](references/module-map.md)，将业务域映射到 Maven 模块和设计文档。
-5. 运行 `scripts/extract_api_contract.py README.md` 生成冻结接口检查清单。除非用户要求保留产物，否则将输出写入临时路径。
+将输出再整体计算一次 SHA-256 并留存。结束前重复执行；摘要变化时不得交付。只校验 Git 跟踪文件，避免 `target/` 等运行产物造成假差异。
 
-按以下优先级消除歧义：README 中明确冻结的 API 契约、相关业务设计文档、通用设计附录、当前实现。遇到真实矛盾时如实报告，不得自行虚构契约。
+## 一、建立设计侧事实源
 
-基线产出必须能回答：
+1. 阅读 `README.md` 第 3、5、6、7、8、9 节和全部 `design-docs/`。聚焦单一业务域时，仍需阅读通用规范及附录 A-D。
+2. 阅读 [references/module-map.md](references/module-map.md)，确认规格、模块和跨模块协作边界。
+3. 生成冻结 REST 契约：
 
-- 每个公开 REST 端点的路径、方法、认证、请求字段、响应字段、成功状态码和错误码；
-- 每个业务域的核心状态机、金额/库存公式、权限边界、事件副作用和可测试配置；
-- 哪些行为已被原始 `test-cases/` 覆盖，哪些设计规格和契约仍缺少黑盒覆盖。
+   ```bash
+   python3 skills/shophub-consistency-agent/scripts/extract_api_contract.py README.md --format json -o /tmp/shophub-api.json
+   python3 skills/shophub-consistency-agent/scripts/extract_api_contract.py README.md --format openapi -o test-case-new/spec/openapi.json
+   ```
 
-## 阶段二：探索原始黑盒用例
+4. 生成设计规格候选：
 
-只读探索 `test-cases/`，目的是学习测试工程结构和已有覆盖，不得修改其文件。
+   ```bash
+   python3 skills/shophub-consistency-agent/scripts/extract_design_specs.py design-docs -o test-case-new/spec/spec-candidates.json
+   ```
 
-1. 识别 `test-cases/pom.xml`、测试启动类、基础测试工具、认证辅助、数据构造方式和断言风格。
-2. 列出每个原始黑盒用例覆盖的 REST 端点、业务场景、正向路径、异常路径和断言点。
-3. 将覆盖情况与阶段一的规格与契约清单对齐，形成缺口清单。
-4. 保留原始用例作为兼容性回归验证，但不把它作为新增测试资产的编辑目标。
+5. 将全部候选复制到 `spec-inventory.json` 后逐项审核：把可由代码、UT、架构测试或黑盒观察的规则标为 `required`；把纯背景说明标为 `informational` 并写明具体理由。不得删除候选、只保留高风险样本，或因当前实现缺失而降低为说明项。高风险只决定执行顺序，不决定是否验收。
 
-## 阶段三：生成 `test-case-new` 黑盒验收用例
+按以下优先级解决冲突：README 冻结契约、业务设计文档、通用规范与附录、当前实现。无法消除的真实冲突必须报告，不得自造期望。
 
-阅读 [references/blackbox-generation.md](references/blackbox-generation.md)，然后创建或更新 `test-case-new/`。
+## 二、只读探索原始黑盒
 
-生成规则：
+1. 阅读 `test-cases/pom.xml`、测试基类、认证辅助、数据构造和全部测试方法。
+2. 记录原始用例覆盖的接口、正向路径、异常路径和断言点。
+3. 将原始覆盖映射到规格 ID，形成缺口；不得把测试方法数量当作规格覆盖率。
+4. 只学习其 Maven 结构、启动方式和测试风格，不复制或修改原始源码。
 
-- 参考 `test-cases/` 的 Maven 结构、Spring Boot 黑盒启动方式、数据隔离方式和断言风格。
-- 从阶段一的设计规格与 REST 契约推导测试，不从当前实现反推期望。
-- 覆盖所有公开 REST 契约；对复杂业务域至少覆盖一个正向场景、一个权限或状态冲突场景、一个关键边界场景。
-- 对设计文档中的金额公式、库存公式、状态机、事件失败记录、运行时配置、故障注入和测试时钟生成明确断言。
-- 每个测试类顶部或测试方法名应能体现对应规格来源；避免把规格解释藏在实现细节里。
-- 不复制 `test-cases/` 的整段源码；可以复用公开测试工程的依赖、启动参数、辅助模式和断言习惯。
+## 三、生成新增验收
 
-生成后先运行 `mvn -s maven-settings.xml -f test-case-new/pom.xml test`。如果新增用例本身无法编译或启动，优先修复 `test-case-new/` 的测试工程问题；如果用例失败反映实现不符合规格，则进入阶段四。
+阅读 [references/blackbox-generation.md](references/blackbox-generation.md)，在 `test-case-new/` 中创建：
 
-## 阶段四：审查并修复实现
+- `spec/openapi.json`：从设计和 README 生成的契约，不得从 Controller 生成期望；
+- `spec/spec-candidates.json`：脚本生成且不得删项的原始候选；
+- `spec/spec-inventory.json`：审核后的设计规则；
+- `spec/traceability.json`：规格 ID 到测试方法的映射；
+- JUnit 黑盒工程：通过真实 HTTP 调用完整应用。
 
-使用 `rg` 搜索，并按以下顺序审查：
+每个冻结接口至少有一个真实 HTTP 契约测试。规则密集业务还必须覆盖：
 
-1. 将接口映射到 Controller，对比路径、方法、认证、DTO 字段、JSON 类型和成功状态码。
-2. 从每个受影响的 Controller 追踪到 Service、领域模型、Repository、事件和配置。
-3. 检查资源归属、授权、状态流转、计算逻辑、持久化默认值、事务边界和异常映射。
-4. 新增共享行为前先检查 `ecommerce-common`。
-5. 阅读 [references/common-patterns.md](references/common-patterns.md)，排查与目标业务域相关的 ShopHub 特有缺陷模式。
+- 状态机：合法转换、非法跳转、终态重复命令和跨接口序列；
+- 公式：典型值、零值、阈值两侧、舍入、上下界和守恒关系；
+- 安全：匿名、未认证、角色不足、资源不归属及失败后无副作用；
+- 事件：主事务结果、非关键监听失败、失败记录和重试/幂等；
+- 配置与时间：运行时覆盖、故障注入、测试时钟和测试隔离。
 
-不得将聚焦修复扩大为全仓库重写。除非无关问题阻塞目标行为，否则将其记录为残余风险。
+只列出全部接口的集合、只排除 405/5xx 或仅断言列表大小，只能记为 `routing` 探测，不能算契约验收。每个冻结接口必须在合法认证和前置数据下发出 HTTP 请求，断言设计规定的精确成功状态码及关键响应字段或可观察副作用。
 
-## 阶段五：实施修复与 UT 同步
+不得把多个互不相关的公式、状态或权限规格仅以注释方式映射到同一测试。每条映射都要列出规格专属 `evidence` 标记，并且这些标记和对应断言必须出现在所引用的测试方法体内。
 
-- 实施能够恢复契约的最小设计驱动补丁。
-- 仅在契约要求时新增或更新 DTO、Service、配置、事件和实现侧测试。
-- 返回 `ResponseEntity` 时显式设置成功状态码。
-- 使用文档定义的业务错误码和 HTTP 映射。
-- 修复无效状态的根因，不得用补偿逻辑掩盖问题。
-- 存在合适的实现侧测试模块时添加回归测试；不得编辑公开黑盒测试。
-- 每修复一个黑盒失败，都同步补充或更新对应模块的 UT，确保单元层能锁定根因。
+## 四、选择一致性检查方法
 
-## 阶段六：反复验收
+阅读 [references/consistency-methods.md](references/consistency-methods.md)，按规则选择最小有效方法：
 
-按“新增黑盒失败 → 修复源代码 → 同步 UT → 重新运行相关测试”的循环推进，直到 `test-case-new/` 黑盒用例全部通过。先运行范围最小的相关测试。在条件允许时，再运行以下命令：
+- REST 形态和认证：设计侧 OpenAPI/契约清单加 HTTP 黑盒；
+- 状态转换：JUnit 转换矩阵；仅在路径组合明显膨胀时引入模型测试工具；
+- 金额、库存、优惠、退款、积分：示例黑盒加属性测试或参数化 UT；
+- 模块依赖、Repository 越界、分层：ArchUnit；无法增加依赖时使用独立静态检查并记录降级；
+- 测试是否真正识别关键错误：对核心计算和状态判断定向运行 PIT；不以全仓库变异率作为硬门槛。
+
+外部工具不可用时使用 JUnit 等价实现，不得跳过对应规则。
+
+## 五、校验追踪并运行新增黑盒
+
+先检查追踪完整性：
+
+```bash
+python3 skills/shophub-consistency-agent/scripts/validate_traceability.py \
+  --api-contract /tmp/shophub-api.json \
+  --candidates test-case-new/spec/spec-candidates.json \
+  --specs test-case-new/spec/spec-inventory.json \
+  --traceability test-case-new/spec/traceability.json \
+  --tests-root test-case-new
+```
+
+再运行：
+
+```bash
+mvn -s maven-settings.xml -f test-case-new/pom.xml test
+```
+
+测试工程无法编译或启动时先修测试基础设施；期望来自明确规格且断言失败时进入实现修复。禁止通过删除用例、放宽断言或改写规格来获得绿色结果。
+
+## 六、定位并修复根因
+
+1. 从失败接口追踪 Controller、DTO、Service、领域模型、Repository、事件和配置。
+2. 检查路径、方法、认证、字段、状态码、错误码、资源归属、状态转换、公式、事务和副作用。
+3. 使用 [references/common-patterns.md](references/common-patterns.md) 排查 ShopHub 已知高风险模式。
+4. 实施恢复规格的最小补丁；不得扩大为无关重写。
+5. 每修复一个黑盒失败，同时新增或更新根因所在模块的 UT；跨模块边界问题补充架构测试。
+
+## 七、循环验收
+
+按“失败证据 → 根因修复 → UT → 相关黑盒 → 全量回归”循环，直至追踪校验和所有测试通过：
 
 ```bash
 mvn -s maven-settings.xml -f code/pom.xml test
@@ -97,17 +125,17 @@ mvn -s maven-settings.xml -f test-cases/pom.xml test
 mvn -s maven-settings.xml -f test-case-new/pom.xml test
 ```
 
-最终验收标准是 `test-case-new/` 全部通过，同时原始 `test-cases/` 不回退。将依赖、网络或 Maven 镜像失败记录为环境限制。不得将未执行或受阻的命令报告为通过。结束前重新检查 `git diff --name-only`，并使用 [references/report-checklist.md](references/report-checklist.md) 完成自检。
+不得把未执行、超时或环境受阻记为通过。完成后使用 [references/report-checklist.md](references/report-checklist.md) 自检。
 
-## 报告结果
+## 八、报告
 
-报告必须包含：
+报告以下内容：
 
-- 检查范围和已读取的契约来源；
-- 原始 `test-cases/` 覆盖探索结论；
-- `test-case-new/` 新增黑盒用例覆盖的设计规格和 REST 契约；
-- 每项不一致、期望行为、修复方式和变更文件；
-- 每条验证命令及其实际结果；
-- 剩余风险和环境限制。
+- 已读取的设计和契约来源；
+- 冻结接口、可验证规格、原始覆盖、新增覆盖和缺口数量；
+- 状态机、公式、权限、事件和架构检查结果；
+- 每项不一致的规格 ID、失败证据、根因、修复及 UT；
+- 每条验证命令的实际结果；
+- 受保护文件摘要复核、环境限制和残余风险。
 
-用户要求生成可复用的 Markdown 产物时，使用 `scripts/generate_report.py`；否则直接在最终回复中提供同等信息。
+需要 Markdown 产物时使用 `scripts/generate_report.py`。

@@ -1,98 +1,114 @@
-# `test-case-new` 黑盒用例生成指南
+# `test-case-new` 黑盒验收生成指南
 
-本指南用于把 `design-docs/` 和 `README.md` 的规格转化为新的黑盒验收测试工程。原始 `test-cases/` 只能作为结构、依赖、启动方式和断言风格参考，不得修改。
+把设计事实转化为可执行验收，不从实现行为推导期望。原始 `test-cases/` 只能只读参考。
 
-## 生成目标
-
-- `test-case-new/` 是新的验收测试工程，用于覆盖原始公开用例未覆盖的设计规格和 REST 契约。
-- 新用例必须从规格推导期望，不得从当前实现行为反推期望。
-- 新用例失败时，先判断失败原因：测试工程错误则修测试；实现不符合规格则修 `code/` 和对应 UT。
-
-## 建议目录结构
-
-优先复用原始黑盒工程的 Maven 形态：
+## 必需产物
 
 ```text
 test-case-new/
 ├── pom.xml
+├── spec/
+│   ├── openapi.json
+│   ├── spec-candidates.json
+│   ├── spec-inventory.json
+│   └── traceability.json
 └── src/test/java/
-    └── .../
+    └── ...
         ├── support/
-        ├── user/
-        ├── product/
-        ├── inventory/
-        ├── cart/
-        ├── order/
-        ├── payment/
-        ├── promotion/
-        ├── logistics/
-        ├── loyalty/
-        └── review/
+        ├── contract/
+        ├── state/
+        ├── calculation/
+        └── architecture/
 ```
 
-如果原始 `test-cases/` 已有可复用的基类、认证辅助或数据构造模式，优先在 `test-case-new/` 中重新实现同等辅助能力，避免直接依赖或改写原始测试源码。
+`openapi.json` 是设计侧契约。实现生成的 OpenAPI 只能作为实际快照参与差异检查，不能覆盖它。
 
-## 覆盖矩阵
+## 规格追踪格式
 
-为每个业务域建立简短矩阵，至少记录：
+`spec-inventory.json`：
 
-| 字段 | 内容 |
-|------|------|
-| 规格来源 | README 章节、设计文档名、附录名 |
-| REST 契约 | 方法、路径、认证、成功状态码、关键请求/响应字段 |
-| 业务规则 | 状态机、公式、权限、事件、配置、时钟、错误码 |
-| 原始覆盖 | 原始 `test-cases/` 是否已有相同或近似场景 |
-| 新增用例 | `test-case-new` 中的测试类和测试方法 |
+```json
+{
+  "requirements": [
+    {
+      "id": "D08-S2-R001",
+      "source": "design-docs/08-订单服务设计.md#2",
+      "category": "state-machine",
+      "description": "已支付订单不能再次发起支付",
+      "status": "required",
+      "reason": "可通过支付接口和查询接口观察"
+    }
+  ]
+}
+```
 
-矩阵可以写入临时笔记或最终报告；只有用户要求保留时才写入仓库文件。
+`traceability.json`：
 
-## 用例选择优先级
+```json
+{
+  "mappings": [
+    {
+      "requirement_id": "D08-S2-R001",
+      "coverage_type": "blackbox",
+      "evidence": ["D08-S2-R001", "PAYMENT_ALREADY_COMPLETED", "assertEquals"],
+      "tests": [
+        "src/test/java/com/ecommerce/blackbox/state/OrderStateTest.java#paidOrderCannotPayAgain"
+      ]
+    }
+  ]
+}
+```
 
-1. README 冻结 REST 契约中未被原始用例覆盖的端点。
-2. 设计文档明确定义但当前实现容易遗漏的状态机和错误码。
-3. 金额、库存、积分、运费、优惠、发票等公式类规则。
-4. 认证、授权、资源归属和管理员权限。
-5. 事件失败记录、故障注入、测试时钟、运行时配置等可测试性能力。
-6. 跨模块链路，例如下单后支付、退款后物流或积分变更。
+覆盖类型使用 `blackbox`、`unit`、`architecture` 或 `routing`。`routing` 仅表示方法和路径可达，不计入规格验收。REST 契约 ID 必须另有 `blackbox` 映射，填写与设计一致的 `expected_status`，并在 `evidence` 中列出规格 ID、具体路径、精确状态码和关键断言标记。
 
-## 单个测试的断言要求
+`spec-candidates.json` 中的每一项都必须出现在 `spec-inventory.json`，状态只能是 `required` 或 `informational`。不得用删除候选的方式提高覆盖率。
 
-每个黑盒测试至少断言以下内容中的相关项：
+## 真实覆盖标准
 
-- HTTP 状态码与 README 契约一致。
-- 响应 JSON 字段存在、类型正确、关键值正确。
-- 业务错误码与 README 第 7 节一致。
-- 认证或权限失败不会修改业务状态。
-- 关键状态流转后的查询结果可见。
-- 金额和库存公式使用精确值断言，避免只断言非空或大于零。
+黑盒测试必须同时具备：
 
-## 编写约束
+- `@Test` 或参数化测试入口；
+- 真实 HTTP 客户端调用；
+- 对状态码、响应字段、错误码或后续可观察状态的断言；
+- 测试源码中出现对应规格 ID。
 
-- 不使用私有 Repository 或 Service 直接制造最终状态；通过公开 REST API 或测试启动阶段允许的初始化路径构造数据。
-- 不依赖测试执行顺序；每个测试自行准备数据。
-- 不依赖真实当前时间；使用设计中的测试时钟或可控配置。
-- 不依赖外部网络、真实支付、真实物流或真实邮件服务。
-- 不为当前实现的缺陷调整期望；应让失败暴露设计不一致。
-- 不把 `test-case-new/` 的失败通过降低断言强度来“修复”。
+以下内容不能单独计为覆盖：
+
+- 在 Java 列表中枚举全部端点并断言数量；
+- 对全部接口只断言“不是 405/5xx”；
+- 只检查 Controller 注解；
+- 只断言响应非空或状态为 2xx；
+- 把多个不相关规格 ID 写进注释，却没有对应输入和断言；
+- 直接调用 Service/Repository 后声称是黑盒；
+- 复制原始公开用例但不增加规格断言。
+
+## 用例设计
+
+### REST 契约
+
+逐端点验证方法、路径、认证、成功状态码、关键请求字段、响应字段和错误结构。创建、删除和回调接口必须检查精确状态码及副作用。
+
+### 状态机
+
+从设计转换表生成矩阵：每条合法边至少一次，每种禁止跳转至少一个代表用例，每个终态至少检查一次重复命令。状态依赖必须通过公开 API 构造。
+
+### 公式与守恒
+
+对金额、库存、积分和优惠覆盖典型值、零值、阈值前后、最大值、舍入和组合顺序。优先断言精确数值，并验证拆分前后总额、预占释放前后库存等守恒关系。
+
+### 权限和副作用
+
+分别覆盖未认证、角色不足、跨用户资源和冻结状态。失败请求后重新查询，确认没有写入或状态改变。
+
+### 事件与可测试性
+
+通过故障注入、事件失败记录、通知记录、运行时配置和测试时钟观察结果。非关键监听器失败不得回滚主事务。
 
 ## 失败分流
 
-运行 `test-case-new` 后按以下顺序处理：
+1. 编译或上下文失败：修复新增测试工程。
+2. 前置数据失败：确认使用合法公开 API 和隔离数据。
+3. 规格明确且断言失败：修复实现及根因 UT。
+4. 规格冲突：保留失败证据并报告，不自行选择有利于当前实现的解释。
 
-1. 编译失败或测试上下文无法启动：修复 `test-case-new` 的工程结构、依赖、包名或测试配置。
-2. 测试数据准备失败：检查测试是否违反公开 API 构造原则；必要时补充合法的前置 API 调用。
-3. 断言失败且规格明确：修复 `code/` 实现，并补充对应模块 UT。
-4. 规格之间真实冲突：停止该用例推进，在报告中列出冲突来源和无法判定原因。
-
-## 最终验收
-
-完成修复后至少运行：
-
-```bash
-mvn -s maven-settings.xml -f code/pom.xml test
-mvn -s maven-settings.xml -f code/pom.xml install -DskipTests
-mvn -s maven-settings.xml -f test-cases/pom.xml test
-mvn -s maven-settings.xml -f test-case-new/pom.xml test
-```
-
-如果环境缺少 Maven、JDK、依赖缓存或网络，必须报告实际失败原因，不得把受阻命令记为通过。
+禁止删除失败测试、降低断言、增加条件跳过或从当前响应复制期望。

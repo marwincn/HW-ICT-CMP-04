@@ -1,4 +1,4 @@
 interface:
-  display_name: "ShopHub 黑盒验收修复"
-  short_description: "生成新增黑盒用例并修复 ShopHub 规格不一致"
-  default_prompt: "使用 $shophub-consistency-agent，先从设计规格和 REST 契约生成 test-case-new 黑盒验收用例，再修复 ShopHub 实现和 UT。"
+  display_name: "ShopHub 设计实现一致性验收"
+  short_description: "从设计生成可追踪黑盒验收并修复 ShopHub 不一致"
+  default_prompt: "使用 $shophub-consistency-agent，从设计规格和冻结 REST 契约建立追踪矩阵与 test-case-new 验收，修复实现和 UT 直到全部测试通过。"
